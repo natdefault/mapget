@@ -21,6 +21,8 @@ class MappingManager:
         if "error" in result or "reason" in result:
             index = self.github.get_index(mapping_type, version)
 
+            #erroring yay errors
+
             return (
                 f"Mapping: {mapping_type}\n\n"
                 f"ERROR: {result.get('error') or result.get('reason')}\n"
@@ -41,7 +43,7 @@ class MappingManager:
             f"Mapping: {mapping_type}\n\n"
             f"Query: {query}\n"
             f"Name: {result.get('name')}\n"
-            f"Readable: {readable}\n"
+            f"Readable: {readable}\n" #this is the one you want
             f"Resolved: {result.get('resolved')}\n"
             f"Obfuscated: {result.get('obfuscated')}\n"
             f"Deobfuscated: {result.get('deobfuscated')}\n"
@@ -51,7 +53,7 @@ class MappingManager:
             f"Category: {result.get('category')}\n"
             f"Version: {result.get('version')}\n"
             f"Extra: {result.get('extra', '')}\n"
-            f"Hint: {hint if hint else 'No extra hints available'}\n"
+            f"Hint: {hint if hint else 'No extra hints available'}\n" # hint bout lil thing, maybe wont work
         )
 
     def detect_mapping_type(self, query):

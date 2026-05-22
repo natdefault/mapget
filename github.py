@@ -45,7 +45,7 @@ class MappingGitHub:
         return True
 
     def fetch_version_manifest(self):
-        url = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+        url = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json" # ?????
         r = requests.get(url)
         return r.json() if r.status_code == 200 else None
 
@@ -74,6 +74,7 @@ class MappingGitHub:
         r = requests.get(mappings["url"])
         return r.text if r.status_code == 200 else None
 
+    #mcp github :sob:
     def fetch_mcp(self, version):
         url = f"https://raw.githubusercontent.com/MinecraftForge/MCPConfig/master/versions/{version}/joined.srg"
         r = requests.get(url)
@@ -304,3 +305,5 @@ class MappingGitHub:
         if "func_" in key or "method_" in key:
             return "method"
         return "class"
+    
+    #hmmm i wonder what that does

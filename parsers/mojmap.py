@@ -1,5 +1,6 @@
 ﻿import re
 
+# mojmaps?
 
 class MojmapParser:
     CLASS_RE = re.compile(r"^(?P<named>.+) -> (?P<obf>.+):$")

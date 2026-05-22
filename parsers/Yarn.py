@@ -1,4 +1,6 @@
-﻿class YarnParser:
+﻿# we hate yarn!
+
+class YarnParser:
     def parse(self, text):
         index = {}
         classes = {}
