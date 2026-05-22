@@ -75,7 +75,6 @@ QToolButton:hover {
 
 QPushButton:pressed,
 QToolButton:pressed {
-    /* avoid shifting text on press - change appearance without padding */
     border: 1px solid #5b8fc0;
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c0e2fb, stop:1 #a6d8f8);
 }
@@ -88,7 +87,6 @@ QMenu {
 }
 
 
-/* Output / console box: inset look like XP dialog areas */
 QPlainTextEdit#output, QTextEdit#output {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #e9f6ff);
     border-top: 1px solid #ffffff;
