@@ -13,7 +13,8 @@
     QToolBar,
     QMenu,
     QWidgetAction,
-    QCheckBox
+    QCheckBox,
+    QToolButton
 )
 
 from PySide6.QtGui import QAction
@@ -22,137 +23,14 @@ from PySide6.QtCore import Qt
 from manager import MappingManager
 
 import sys
+from themes.xp import THEME as XP_THEME
+from themes.vista import THEME as VISTA_THEME
+from themes.void import THEME as VOID_THEME
+from themes.dark import THEME as DARK_THEME
+from themes.win95 import THEME as WIN95_THEME
 
 
-THEME = """
-QMainWindow {
-    background: #dfe8f6;
-}
-
-QWidget {
-    background: #eef3fb;
-    color: #000000;
-    font-family: Segoe UI;
-    font-size: 12px;
-}
-
-QToolBar {
-    background: qlineargradient(
-        x1:0, y1:0,
-        x2:0, y2:1,
-        stop:0 #f7fbff,
-        stop:1 #d6e4f5
-    );
-
-    border-bottom: 1px solid #8aa6c1;
-    spacing: 4px;
-    padding: 2px;
-}
-
-QFrame#mainPanel {
-    background: #f5f8fd;
-    border: 1px solid #8aa6c1;
-}
-
-QLabel {
-    background: transparent;
-    color: #000000;
-}
-
-QLineEdit,
-QComboBox,
-QTextEdit {
-    background: white;
-
-    border-top: 1px solid #7f9db9;
-    border-left: 1px solid #7f9db9;
-    border-right: 1px solid #b7c9dc;
-    border-bottom: 1px solid #b7c9dc;
-
-    padding: 2px;
-    min-height: 18px;
-}
-
-QComboBox {
-    padding-right: 18px;
-}
-
-QComboBox::drop-down {
-    width: 18px;
-    border-left: 1px solid #a6b8cb;
-
-    background: qlineargradient(
-        x1:0, y1:0,
-        x2:0, y2:1,
-        stop:0 #ffffff,
-        stop:1 #d9e7f7
-    );
-}
-
-QPushButton {
-    min-height: 20px;
-
-    padding-left: 8px;
-    padding-right: 8px;
-
-    border-top: 1px solid #ffffff;
-    border-left: 1px solid #ffffff;
-    border-right: 1px solid #7f9db9;
-    border-bottom: 1px solid #7f9db9;
-
-    background: qlineargradient(
-        x1:0, y1:0,
-        x2:0, y2:1,
-        stop:0 #ffffff,
-        stop:1 #dbe8f7
-    );
-}
-
-QPushButton:hover {
-    background: qlineargradient(
-        x1:0, y1:0,
-        x2:0, y2:1,
-        stop:0 #ffffff,
-        stop:1 #cfe4ff
-    );
-}
-
-QPushButton:pressed {
-    background: #c7d8eb;
-}
-
-QMenu {
-    background: #f7fbff;
-    border: 1px solid #7f9db9;
-    padding: 4px;
-}
-
-QCheckBox {
-    spacing: 6px;
-    background: transparent;
-}
-
-QTextEdit {
-    background: white;
-}
-
-QScrollBar:vertical {
-    width: 14px;
-    background: #e8eef7;
-}
-
-QScrollBar::handle:vertical {
-    background: #c1d2e8;
-    border: 1px solid #8aa6c1;
-    min-height: 20px;
-}
-
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
-    height: 0px;
-}
-"""
-
+THEME = VOID_THEME
 
 class AppWindow(QMainWindow):
     def __init__(self):
@@ -195,10 +73,7 @@ class AppWindow(QMainWindow):
 
         self.addToolBar(toolbar)
 
-        settings_button = QPushButton("settings")
-        settings_button.setFixedHeight(22)
-
-        settings_menu = QMenu()
+        settings_menu = QMenu(self)
 
         self.auto_detect_checkbox = QCheckBox(
             "enable auto detection"
@@ -223,14 +98,63 @@ class AppWindow(QMainWindow):
             action.setDefaultWidget(checkbox)
             settings_menu.addAction(action)
 
+        settings_button = QToolButton()
+        settings_button.setText("settings")
         settings_button.setMenu(settings_menu)
+        settings_button.setPopupMode(
+            QToolButton.InstantPopup
+        )
+        settings_button.setFixedHeight(24)
 
         toolbar.addWidget(settings_button)
+
+        themes_menu = QMenu(self)
+
+        self.theme_group = []
+
+        theme_names = [
+            "xp",
+            "vista",
+            "void",
+            "dark",
+            "win95"
+        ]
+
+        self.current_theme = "void"
+
+        for theme_name in theme_names:
+            checkbox = QCheckBox(theme_name)
+
+            checkbox.clicked.connect(
+                lambda checked, name=theme_name:
+                self.change_theme(name)
+            )
+
+            self.theme_group.append(checkbox)
+
+            action = QWidgetAction(themes_menu)
+            action.setDefaultWidget(checkbox)
+
+            themes_menu.addAction(action)
+
+        for checkbox in self.theme_group:
+            if checkbox.text() == self.current_theme:
+                checkbox.setChecked(True)
+
+        themes_button = QToolButton()
+        themes_button.setText("themes")
+        themes_button.setMenu(themes_menu)
+        themes_button.setPopupMode(
+            QToolButton.InstantPopup
+        )
+        themes_button.setFixedHeight(24)
+
+        toolbar.addWidget(themes_button)
 
         toolbar.addSeparator()
 
         about_button = QPushButton("about")
-        about_button.setFixedHeight(22)
+        about_button.setFixedHeight(24)
 
         toolbar.addWidget(about_button)
 
@@ -387,15 +311,29 @@ class AppWindow(QMainWindow):
 
         self.output.setPlainText(result)
 
+    def change_theme(self, theme_name):
+        self.current_theme = theme_name
 
-def main():
-    app = QApplication(sys.argv)
+        for checkbox in self.theme_group:
+            checkbox.blockSignals(True)
 
-    window = AppWindow()
-    window.show()
+            checkbox.setChecked(
+                checkbox.text() == theme_name
+            )
 
-    sys.exit(app.exec())
+            checkbox.blockSignals(False)
 
+        if theme_name == "xp":
+            self.setStyleSheet(XP_THEME)
 
-if __name__ == "__main__":
-    main()
+        elif theme_name == "vista":
+            self.setStyleSheet(VISTA_THEME)
+
+        elif theme_name == "void":
+            self.setStyleSheet(VOID_THEME)
+
+        elif theme_name == "dark":
+            self.setStyleSheet(DARK_THEME)
+            
+        elif theme_name == "win95":
+            self.setStyleSheet(WIN95_THEME)
