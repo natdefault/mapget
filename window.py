@@ -17,7 +17,7 @@
     QToolButton
 )
 
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtCore import Qt
 
 from manager import MappingManager
@@ -40,6 +40,8 @@ class AppWindow(QMainWindow):
 
         self.setWindowTitle("mapget")
         self.resize(620, 430)
+
+        self.setWindowIcon(QIcon("helpsheet.png"))
 
         self.setStyleSheet(THEME)
 
@@ -334,6 +336,6 @@ class AppWindow(QMainWindow):
 
         elif theme_name == "dark":
             self.setStyleSheet(DARK_THEME)
-            
+
         elif theme_name == "win95":
             self.setStyleSheet(WIN95_THEME)
