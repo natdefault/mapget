@@ -42,3 +42,7 @@ first run might take longer because it downloads mapping data and caches it loca
 ## purpose
 
 this is just a small tool for looking up minecraft mappings. feel free to use it or modify it however you want
+
+## license
+
+licensed under the gnu agpl-3.0 license.
