@@ -3,6 +3,10 @@
 <br>
 written by natdefault, 4xnico.
 
+<br>
+<img width="720" height="558" alt="mapget_preview" src="https://github.com/user-attachments/assets/87a2e360-5437-4d53-87ed-dcb56cc6e1eb" />
+<br>
+
 this is a simple minecraft mapping lookup tool
 
 you can input things like field_9989, func_1234, or other mapped/obfuscated names and it will try to return a readable name, class path, type, and some extra info depending on the mapping data.
