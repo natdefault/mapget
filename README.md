@@ -19,6 +19,10 @@ it supports:
 - mcp (only older versions, 1.12 and below)
 - auto mapping detection
 - obfuscated mode (for yarn-style inputs)
+- retromcp
+- srg
+- tsrg
+- intermediary
 
 ## main functions
 
