@@ -1,4 +1,4 @@
-﻿THEME = """
+THEME = """
 QMainWindow {
     background-color: #000000;
 }
@@ -93,6 +93,7 @@ QPushButton {
 
     padding: 6px 14px;
     min-height: 20px;
+    border-radius: 0px;
 }
 
 QPushButton:hover {
@@ -110,6 +111,7 @@ QToolButton {
 
     padding: 6px 14px;
     min-height: 20px;
+    border-radius: 0px;
 }
 
 QToolButton:hover {
@@ -197,7 +199,7 @@ QCheckBox::indicator {
     width: 9px;
     height: 9px;
 
-    border-radius: 4px;
+    border-radius: 0px;
 
     border: 1px solid #5a5a5a;
 

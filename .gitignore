@@ -5,3 +5,4 @@ dist/
 *.spec
 version.py
 .cache
+.mgcfg
