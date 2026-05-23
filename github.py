@@ -1,6 +1,8 @@
-﻿import requests
+import requests
 import os
-import json
+import sqlite3
+import pickle
+import zlib
 import zipfile
 import io
 
@@ -13,22 +15,42 @@ from utils.mapping_utils import is_placeholder, readable_name, hint_for_entry
 class MappingGitHub:
     def __init__(self):
         self.cache = {}
-        self.cache_dir = "cache"
-        os.makedirs(self.cache_dir, exist_ok=True)
+        self.cache_file = ".cache"
+        self._init_db() # init sqlite cache
 
-    def _cache_path(self, mapping_type, version):
-        return os.path.join(self.cache_dir, f"{mapping_type}_{version}.json")
+    def _init_db(self):
+        conn = sqlite3.connect(self.cache_file)
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, data BLOB)")
+        conn.commit()
+        conn.close()
 
-    def load_cache(self, mapping_type, version):
-        path = self._cache_path(mapping_type, version)
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+    def load_cache(self, mapping_type, version): # fetch cached mappings
+        key = f"{mapping_type}_{version}"
+        try:
+            conn = sqlite3.connect(self.cache_file)
+            cursor = conn.cursor()
+            cursor.execute("SELECT data FROM cache WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                return pickle.loads(zlib.decompress(row[0]))
+        except Exception:
+            pass
         return None
 
     def save_cache(self, mapping_type, version, data):
-        with open(self._cache_path(mapping_type, version), "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        ## this faster now
+        key = f"{mapping_type}_{version}"
+        try:
+            compressed = zlib.compress(pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL))
+            conn = sqlite3.connect(self.cache_file)
+            cursor = conn.cursor()
+            cursor.execute("INSERT OR REPLACE INTO cache (key, data) VALUES (?, ?)", (key, compressed))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
 
     def _is_valid_index(self, index):
         if not isinstance(index, dict):
