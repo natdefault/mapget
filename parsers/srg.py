@@ -1,15 +1,11 @@
-import re
-
-#this should be tung tung sahur now
-
-class MCPParser:
+class SRGParser:
     def parse(self, text):
         index = {}
 
         for raw_line in text.splitlines():
             line = raw_line.strip()
 
-            if not line or line.startswith("#"):
+            if not line:
                 continue
 
             if line.startswith("CL:"):
@@ -19,17 +15,18 @@ class MCPParser:
                     continue
 
                 obf = parts[1].replace("/", ".")
-                named = parts[2].replace("/", ".")
+                srg = parts[2].replace("/", ".")
 
                 entry = {
                     "type": "class",
-                    "obf": obf,
-                    "named": named,
-                    "path": named,
+                    "obfuscated": obf,
+                    "deobfuscated": srg,
+                    "path": srg,
+                    "mapping": "srg",
                 }
 
                 index[obf] = entry
-                index[named] = entry
+                index[srg] = entry
 
             elif line.startswith("FD:"):
                 parts = line.split()
@@ -38,22 +35,23 @@ class MCPParser:
                     continue
 
                 obf_path = parts[1].replace("/", ".")
-                named_path = parts[2].replace("/", ".")
+                srg_path = parts[2].replace("/", ".")
 
                 obf_class, obf_name = obf_path.rsplit(".", 1)
-                named_class, named_name = named_path.rsplit(".", 1)
+                srg_class, srg_name = srg_path.rsplit(".", 1)
 
                 entry = {
                     "type": "field",
-                    "obf": obf_name,
-                    "named": named_name,
-                    "class": named_class,
-                    "path": named_path,
+                    "obfuscated": obf_name,
+                    "deobfuscated": srg_name,
+                    "class": srg_class,
+                    "path": srg_path,
+                    "mapping": "srg",
                 }
 
                 index[obf_name] = entry
-                index[named_name] = entry
-                index[named_path] = entry
+                index[srg_name] = entry
+                index[srg_path] = entry
 
             elif line.startswith("MD:"):
                 parts = line.split()
@@ -63,24 +61,26 @@ class MCPParser:
 
                 obf_path = parts[1].replace("/", ".")
                 obf_desc = parts[2]
-                named_path = parts[3].replace("/", ".")
-                named_desc = parts[4]
+
+                srg_path = parts[3].replace("/", ".")
+                srg_desc = parts[4]
 
                 obf_class, obf_name = obf_path.rsplit(".", 1)
-                named_class, named_name = named_path.rsplit(".", 1)
+                srg_class, srg_name = srg_path.rsplit(".", 1)
 
                 entry = {
                     "type": "method",
-                    "obf": obf_name,
-                    "named": named_name,
-                    "class": named_class,
-                    "descriptor": named_desc,
+                    "obfuscated": obf_name,
+                    "deobfuscated": srg_name,
+                    "class": srg_class,
+                    "descriptor": srg_desc,
                     "obf_descriptor": obf_desc,
-                    "path": named_path,
+                    "path": srg_path,
+                    "mapping": "srg",
                 }
 
                 index[obf_name] = entry
-                index[named_name] = entry
-                index[named_path] = entry
+                index[srg_name] = entry
+                index[srg_path] = entry
 
         return index

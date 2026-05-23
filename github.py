@@ -10,6 +10,10 @@ import json
 from parsers.mojmap import MojmapParser
 from parsers.mcp import MCPParser
 from parsers.Yarn import YarnParser
+from parsers.intermediary import IntermediaryParser
+from parsers.srg import SRGParser
+from parsers.tsrg import TSRGParser
+from parsers.retromcp import RetroMCPParser
 from utils.mapping_utils import is_placeholder, readable_name, hint_for_entry
 
 
@@ -173,6 +177,96 @@ class MappingGitHub:
                         return zf.read(name).decode("utf-8")
 
         return None
+    
+    def fetch_intermediary(self, version, progress_callback=None):
+        url = (
+            f"https://maven.fabricmc.net/net/fabricmc/intermediary/"
+            f"{version}/intermediary-{version}-v2.jar"
+        )
+
+        raw = self.download_url(
+            url,
+            "downloading intermediary mappings..",
+            progress_callback
+        )
+
+        if not raw or not isinstance(raw, bytes):
+            return None
+
+        with io.BytesIO(raw) as jar_data:
+            with zipfile.ZipFile(jar_data) as zf:
+                for name in zf.namelist():
+                    if name.endswith(".tiny"):
+                        return zf.read(name).decode("utf-8")
+
+        return None
+    
+    def fetch_srg(self, version, progress_callback=None):
+        url = (
+            f"https://raw.githubusercontent.com/"
+            f"MinecraftForge/MCPConfig/master/"
+            f"versions/{version}/joined.srg"
+        )
+
+        return self.download_url(
+            url,
+            "downloading srg mappings..",
+            progress_callback
+        )
+    
+    def fetch_tsrg(self, version, progress_callback=None):
+        url = (
+            f"https://raw.githubusercontent.com/"
+            f"MinecraftForge/MCPConfig/master/"
+            f"versions/{version}/joined.tsrg"
+        )
+
+        return self.download_url(
+            url,
+            "downloading tsrg mappings..",
+            progress_callback
+        )
+    
+    def fetch_retromcp(self, version, progress_callback=None):
+        base = (
+            "https://raw.githubusercontent.com/"
+            "ModCoderPack/MCPMappingsArchive/master/"
+            f"mcp/{version}/"
+        )
+
+        methods = self.download_url(
+            base + "methods.csv",
+            "downloading retromcp methods..",
+            progress_callback
+        )
+
+        fields = self.download_url(
+            base + "fields.csv",
+            "downloading retromcp fields..",
+            progress_callback
+        )
+
+        output = []
+
+        if methods:
+            output.append(methods)
+
+        if fields:
+            output.append(fields)
+
+        if not output:
+            return None
+
+        return "\n".join(output)
+    
+    def is_legacy_version(self, version):
+        try:
+            major, minor = map(int, version.split(".")[:2])
+
+            return major == 1 and minor <= 12
+
+        except Exception:
+            return False
 
     def is_mcp_version_allowed(self, version):
         try:
@@ -213,7 +307,43 @@ class MappingGitHub:
             if not raw:
                 return None
             index = YarnParser().parse(raw)
+        elif mapping_type == "intermediary":
+            raw = self.fetch_intermediary(version, progress_callback)
 
+            if not raw:
+                return None
+
+            index = IntermediaryParser().parse(raw)
+
+        elif mapping_type == "srg":
+            raw = self.fetch_srg(version, progress_callback)
+
+            if not raw:
+                return None
+
+            index = SRGParser().parse(raw)
+
+        elif mapping_type == "tsrg":
+            raw = self.fetch_tsrg(version, progress_callback)
+
+            if not raw:
+                return None
+
+            index = TSRGParser().parse(raw)
+
+        elif mapping_type == "retromcp":
+            if not self.is_legacy_version(version):
+                return {
+                    "_invalid": True,
+                    "reason": "RetroMCP only supports <= 1.12.x"
+                }
+
+            raw = self.fetch_retromcp(version, progress_callback)
+
+            if not raw:
+                return None
+
+            index = RetroMCPParser().parse(raw)
         else:
             return None
 
@@ -231,9 +361,6 @@ class MappingGitHub:
         if isinstance(index, dict) and index.get("_invalid"):
             return index
 
-        if mapping_type == "mcp":
-            return self._search_mcp(index, query, version)
-
         result = self._search_index(index, query, version, mapping_type)
         if result:
             return result
@@ -244,7 +371,14 @@ class MappingGitHub:
         }
 
     def _search_obfuscated(self, query, version, progress_callback=None):
-        for mapping_type in ["yarn", "mojmap", "mcp"]:
+        for mapping_type in [
+            "yarn",
+            "mojmap",
+            "intermediary",
+            "srg",
+            "tsrg",
+            "retromcp"
+        ]:
             if progress_callback and progress_callback("", -2):
                 return {"error": "Search cancelled"}
             index = self.get_index(mapping_type, version, progress_callback)
@@ -280,20 +414,6 @@ class MappingGitHub:
                 return self._resolve_output(key, value, version, mapping_type)
 
         return None
-
-    def _search_mcp(self, index, query, version):
-        if query in index:
-            return self._resolve_output(query, index[query], version, "mcp")
-
-        lower_query = query.lower()
-        for key, value in index.items():
-            if lower_query in key.lower() or lower_query in str(value.get("named", "")).lower():
-                return self._resolve_output(key, value, version, "mcp")
-
-        return {
-            "error": "MCP key not found",
-            "query": query,
-        }
 
     def _resolve_output(self, key, data, version, mapping_type):
         name = data.get("named") or data.get("intermediary") or data.get("path") or key
@@ -336,7 +456,13 @@ class MappingGitHub:
             return result["readable"]
 
         source_mapping = result.get("source_mapping") or result.get("mapping")
-        search_types = ["yarn", "mojmap", "mcp"]
+        search_types = [    "yarn",
+        "mojmap",
+        "intermediary",
+        "srg",
+        "tsrg",
+        "retromcp"
+        ]
         if source_mapping in search_types:
             search_types.remove(source_mapping)
         for mapping_type in search_types:

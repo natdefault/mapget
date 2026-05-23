@@ -1,69 +1,104 @@
 ﻿import re
 
-# mojmaps?
+# updated this one too cuz it was bad
 
 class MojmapParser:
     CLASS_RE = re.compile(r"^(?P<named>.+) -> (?P<obf>.+):$")
 
+    METHOD_RE = re.compile(
+        r"^(?:\d+:\d+:)?(?P<return>\S+)\s+(?P<name>\S+)\((?P<params>.*)\)(?::\d+:\d+)? -> (?P<obf>\S+)$"
+    )
+
+    FIELD_RE = re.compile(
+        r"^(?P<type>\S+)\s+(?P<name>\S+) -> (?P<obf>\S+)$"
+    )
+
     def parse(self, text):
         index = {}
         current_class = None
-        current_class_obf = None
 
         for raw_line in text.splitlines():
-            line = raw_line.rstrip("\n")
-            if not line.strip() or line.strip().startswith("#"):
+            line = raw_line.rstrip()
+
+            if not line.strip():
+                continue
+
+            if line.strip().startswith("#"):
                 continue
 
             if not line.startswith("    "):
                 match = self.CLASS_RE.match(line.strip())
+
                 if not match:
                     continue
 
-                current_class = match.group("named")
-                current_class_obf = match.group("obf")
-                class_entry = {
-                    "named": current_class,
-                    "obf": current_class_obf,
+                named = match.group("named").replace("/", ".")
+                obf = match.group("obf").replace("/", ".")
+
+                current_class = named
+
+                entry = {
                     "type": "class",
-                    "path": current_class,
+                    "named": named,
+                    "obf": obf,
+                    "path": named,
                 }
-                index[current_class] = class_entry
-                index[current_class_obf] = class_entry
+
+                index[named] = entry
+                index[obf] = entry
+
                 continue
 
             if current_class is None:
                 continue
 
-            member_line = line.strip()
-            if " -> " not in member_line:
+            member = line.strip()
+
+            method_match = self.METHOD_RE.match(member)
+
+            if method_match:
+                return_type = method_match.group("return")
+                method_name = method_match.group("name")
+                params = method_match.group("params")
+                obf = method_match.group("obf")
+
+                descriptor = f"{return_type}({params})"
+
+                path = f"{current_class}.{method_name}"
+
+                entry = {
+                    "type": "method",
+                    "named": method_name,
+                    "obf": obf,
+                    "class": current_class,
+                    "descriptor": descriptor,
+                    "path": path,
+                }
+
+                index[obf] = entry
+                index[path] = entry
+
                 continue
 
-            left, obf = [part.strip() for part in member_line.split("->", 1)]
-            parts = left.split()
-            if len(parts) < 2:
-                continue
+            field_match = self.FIELD_RE.match(member)
 
-            if "(" in parts[-1] or "(" in parts[0]:
-                member_type = "method"
-                descriptor = parts[0]
-                member_name = parts[1]
-            else:
-                member_type = "field"
-                descriptor = parts[0]
-                member_name = parts[1]
+            if field_match:
+                field_type = field_match.group("type")
+                field_name = field_match.group("name")
+                obf = field_match.group("obf")
 
-            path = f"{current_class}.{member_name}"
-            entry = {
-                "named": member_name,
-                "obf": obf,
-                "type": member_type,
-                "class": current_class,
-                "descriptor": descriptor,
-                "path": path,
-            }
+                path = f"{current_class}.{field_name}"
 
-            index[member_name] = entry
-            index[obf] = entry
+                entry = {
+                    "type": "field",
+                    "named": field_name,
+                    "obf": obf,
+                    "class": current_class,
+                    "descriptor": field_type,
+                    "path": path,
+                }
+
+                index[obf] = entry
+                index[path] = entry
 
         return index
