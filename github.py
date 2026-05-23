@@ -5,6 +5,7 @@ import pickle
 import zlib
 import zipfile
 import io
+import json
 
 from parsers.mojmap import MojmapParser
 from parsers.mcp import MCPParser
@@ -66,25 +67,63 @@ class MappingGitHub:
 
         return True
 
-    def fetch_version_manifest(self):
-        url = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json" # ?????
-        r = requests.get(url)
-        return r.json() if r.status_code == 200 else None
+    def download_url(self, url, description, progress_callback=None):
+        if not progress_callback:
+            r = requests.get(url)
+            return r.text if r.status_code == 200 else None
 
-    def get_version_json(self, version):
-        manifest = self.fetch_version_manifest()
+        try:
+            r = requests.get(url, stream=True)
+            if r.status_code != 200:
+                return None
+
+            total = r.headers.get("content-length")
+            chunks = []
+
+            if total is None:
+                progress_callback(description, -1)
+                for chunk in r.iter_content(chunk_size=8192):
+                    if progress_callback(description, -2):
+                        return None
+                    chunks.append(chunk)
+            else:
+                total = int(total)
+                downloaded = 0
+                for chunk in r.iter_content(chunk_size=8192):
+                    if progress_callback(description, -2):
+                        return None
+                    downloaded += len(chunk)
+                    percent = int(100 * downloaded / total)
+                    progress_callback(description, percent)
+                    chunks.append(chunk)
+
+            content = b"".join(chunks)
+            try:
+                return content.decode("utf-8")
+            except UnicodeDecodeError:
+                return content
+        except Exception:
+            return None
+
+    def fetch_version_manifest(self, progress_callback=None):
+        url = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+        raw = self.download_url(url, "downloading version manifest..", progress_callback)
+        return json.loads(raw) if raw else None
+
+    def get_version_json(self, version, progress_callback=None):
+        manifest = self.fetch_version_manifest(progress_callback)
         if not manifest:
             return None
 
         for v in manifest["versions"]:
             if v["id"] == version:
-                r = requests.get(v["url"])
-                return r.json() if r.status_code == 200 else None
+                raw = self.download_url(v["url"], "downloading version info..", progress_callback)
+                return json.loads(raw) if raw else None
 
         return None
 
-    def fetch_mojmap(self, version):
-        data = self.get_version_json(version)
+    def fetch_mojmap(self, version, progress_callback=None):
+        data = self.get_version_json(version, progress_callback)
         if not data:
             return None
 
@@ -93,25 +132,22 @@ class MappingGitHub:
         if not mappings:
             return None
 
-        r = requests.get(mappings["url"])
-        return r.text if r.status_code == 200 else None
+        return self.download_url(mappings["url"], "downloading mappings..", progress_callback)
 
-    #mcp github :sob:
-    def fetch_mcp(self, version):
+    def fetch_mcp(self, version, progress_callback=None):
         url = f"https://raw.githubusercontent.com/MinecraftForge/MCPConfig/master/versions/{version}/joined.srg"
-        r = requests.get(url)
-        return r.text if r.status_code == 200 else None
+        return self.download_url(url, "downloading mappings..", progress_callback)
 
-    def _normalize_yarn_version(self, version):
+    def _normalize_yarn_version(self, version, progress_callback=None):
         if "+build." in version:
             return version
 
         url = f"https://meta.fabricmc.net/v2/versions/yarn/{version}"
-        r = requests.get(url)
-        if r.status_code != 200:
+        raw = self.download_url(url, "downloading version info..", progress_callback)
+        if not raw:
             return None
 
-        versions = r.json()
+        versions = json.loads(raw)
         if isinstance(versions, dict):
             versions = [versions]
         if not versions:
@@ -120,17 +156,17 @@ class MappingGitHub:
         versions.sort(key=lambda item: (item.get("stable", False), item.get("build", 0)), reverse=True)
         return versions[0].get("version")
 
-    def fetch_yarn(self, version):
-        yarn_version = self._normalize_yarn_version(version)
+    def fetch_yarn(self, version, progress_callback=None):
+        yarn_version = self._normalize_yarn_version(version, progress_callback)
         if not yarn_version:
             return None
 
         url = f"https://maven.fabricmc.net/net/fabricmc/yarn/{yarn_version}/yarn-{yarn_version}.jar"
-        r = requests.get(url)
-        if r.status_code != 200:
+        raw = self.download_url(url, "downloading mappings..", progress_callback)
+        if not raw or not isinstance(raw, bytes):
             return None
 
-        with io.BytesIO(r.content) as jar_data:
+        with io.BytesIO(raw) as jar_data:
             with zipfile.ZipFile(jar_data) as zf:
                 for name in zf.namelist():
                     if name.lower().endswith(".tiny"):
@@ -145,7 +181,7 @@ class MappingGitHub:
         except Exception:
             return False
 
-    def get_index(self, mapping_type, version):
+    def get_index(self, mapping_type, version, progress_callback=None):
         if mapping_type == "obfuscated":
             return None
 
@@ -159,7 +195,7 @@ class MappingGitHub:
             return cached
 
         if mapping_type == "mojmap":
-            raw = self.fetch_mojmap(version)
+            raw = self.fetch_mojmap(version, progress_callback)
             if not raw:
                 return None
             index = MojmapParser().parse(raw)
@@ -167,13 +203,13 @@ class MappingGitHub:
         elif mapping_type == "mcp":
             if not self.is_mcp_version_allowed(version):
                 return {"_invalid": True, "reason": "MCP only supports <= 1.12.x"}
-            raw = self.fetch_mcp(version)
+            raw = self.fetch_mcp(version, progress_callback)
             if not raw:
                 return None
             index = MCPParser().parse(raw)
 
         elif mapping_type == "yarn":
-            raw = self.fetch_yarn(version)
+            raw = self.fetch_yarn(version, progress_callback)
             if not raw:
                 return None
             index = YarnParser().parse(raw)
@@ -185,12 +221,11 @@ class MappingGitHub:
         self.save_cache(mapping_type, version, index)
         return index
 
-
-    def search(self, query, mapping_type, version):
+    def search(self, query, mapping_type, version, progress_callback=None):
         if mapping_type == "obfuscated":
-            return self._search_obfuscated(query, version)
+            return self._search_obfuscated(query, version, progress_callback)
 
-        index = self.get_index(mapping_type, version)
+        index = self.get_index(mapping_type, version, progress_callback)
         if not index:
             return {"error": "Index failed to load"}
         if isinstance(index, dict) and index.get("_invalid"):
@@ -208,9 +243,11 @@ class MappingGitHub:
             "query": query,
         }
 
-    def _search_obfuscated(self, query, version):
+    def _search_obfuscated(self, query, version, progress_callback=None):
         for mapping_type in ["yarn", "mojmap", "mcp"]:
-            index = self.get_index(mapping_type, version)
+            if progress_callback and progress_callback("", -2):
+                return {"error": "Search cancelled"}
+            index = self.get_index(mapping_type, version, progress_callback)
             if not index or (isinstance(index, dict) and index.get("_invalid")):
                 continue
             result = self._search_index(index, query, version, mapping_type)

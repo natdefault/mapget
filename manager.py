@@ -7,7 +7,7 @@ class MappingManager:
     def __init__(self):
         self.github = MappingGitHub()
 
-    def handle_query(self, query, mapping_type, version):
+    def handle_query(self, query, mapping_type, version, progress_callback=None):
         if not query:
             return "Empty query"
 
@@ -16,10 +16,10 @@ class MappingManager:
         if mapping_type == "auto":
             mapping_type = self.detect_mapping_type(query)
 
-        result = self.github.search(query, mapping_type, version)
+        result = self.github.search(query, mapping_type, version, progress_callback=progress_callback)
 
         if "error" in result or "reason" in result:
-            index = self.github.get_index(mapping_type, version)
+            index = self.github.get_index(mapping_type, version, progress_callback=progress_callback)
 
             #erroring yay errors
 

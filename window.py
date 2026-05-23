@@ -14,14 +14,17 @@ from PySide6.QtWidgets import (
     QMenu,
     QWidgetAction,
     QCheckBox,
-    QToolButton
+    QToolButton,
+    QDialog,
+    QProgressBar
 )
 
-from PySide6.QtGui import QAction, QIcon
-from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtCore import Qt, QTimer
 
 import os
 import sys
+import sqlite3
 from manager import MappingManager
 from themes.xp import THEME as XP_THEME
 from themes.vista import THEME as VISTA_THEME
@@ -44,13 +47,181 @@ def get_asset_path(filename):
     return filename
 
 
+def load_settings():
+    settings = {
+        "theme": "void",
+        "auto_detect": True,
+        "variant_buttons": False,
+        "debug": False,
+        "update_check": True
+    }
+    try:
+        conn = sqlite3.connect(".mgcfg")
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        cursor.execute("SELECT key, value FROM settings")
+        for row in cursor.fetchall():
+            k, v = row[0], row[1]
+            if k == "theme":
+                settings["theme"] = v
+            elif k in ["auto_detect", "variant_buttons", "debug", "update_check"]:
+                settings[k] = v == "True"
+        conn.close()
+    except Exception:
+        pass
+    return settings
+
+
+def save_setting(key, value):
+    try:
+        conn = sqlite3.connect(".mgcfg")
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
 THEME = VOID_THEME
+
+
+class DownloadProgressDialog(QDialog):
+    def __init__(self, parent=None, current_theme="void"):
+        super().__init__(parent)
+        self.cancelled = False
+        self.setWindowTitle("downloading...")
+        self.setFixedSize(300, 120)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowSystemMenuHint)
+
+        progress_bar_style = ""
+        if current_theme == "xp":
+            progress_bar_style = """
+                QProgressBar {
+                    border: 1px solid #7aa0d9;
+                    background: #ffffff;
+                    text-align: center;
+                }
+                QProgressBar::chunk {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a6e3a1, stop:1 #32c524);
+                }
+            """
+        elif current_theme == "vista":
+            progress_bar_style = """
+                QProgressBar {
+                    border: 1px solid #8da4bf;
+                    background: #ffffff;
+                    text-align: center;
+                }
+                QProgressBar::chunk {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a3d8f5, stop:1 #4ca8e6);
+                }
+            """
+        elif current_theme == "void":
+            progress_bar_style = """
+                QProgressBar {
+                    border: 1px solid #272727;
+                    background: #111111;
+                    text-align: center;
+                    color: #f2f2f2;
+                }
+                QProgressBar::chunk {
+                    background: #444444;
+                }
+            """
+        elif current_theme == "dark":
+            progress_bar_style = """
+                QProgressBar {
+                    border: 1px solid #33363b;
+                    background: #1f2226;
+                    text-align: center;
+                    color: #f0f0f0;
+                }
+                QProgressBar::chunk {
+                    background: #4b6eaf;
+                }
+            """
+        elif current_theme == "win95":
+            progress_bar_style = """
+                QProgressBar {
+                    border-top: 2px solid #404040;
+                    border-left: 2px solid #404040;
+                    border-right: 2px solid #ffffff;
+                    border-bottom: 2px solid #ffffff;
+                    background: #c0c0c0;
+                    text-align: center;
+                    color: #000000;
+                }
+                QProgressBar::chunk {
+                    background-color: #000080;
+                    width: 8px;
+                    margin: 1px;
+                }
+            """
+        self.setStyleSheet(parent.styleSheet() + "\n" + progress_bar_style)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(10)
+
+        self.icon_label = QLabel()
+        icon_name = "dl_invert.png" if current_theme in ["xp", "vista", "win95"] else "dl.png"
+        pixmap = QPixmap(get_asset_path(f"assets/{icon_name}"))
+        self.icon_label.setPixmap(pixmap)
+        self.icon_label.setFixedSize(16, 16)
+        self.icon_label.setScaledContents(True)
+        header_layout.addWidget(self.icon_label)
+
+        self.text_label = QLabel("starting download...")
+        header_layout.addWidget(self.text_label)
+        header_layout.addStretch()
+
+        layout.addLayout(header_layout)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
+
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+    def reject(self):
+        self.cancelled = True
+        super().reject()
+
+    def update_progress_safe(self, description, percent):
+        if self.cancelled:
+            return
+        if percent == -2:
+            return
+
+        self.text_label.setText(description)
+        if percent == -1:
+            self.progress_bar.setRange(0, 0)
+        else:
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(percent)
+
 
 class AppWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.manager = MappingManager()
+        self.settings = load_settings()
+        self.current_theme = self.settings.get("theme", "void")
 
         if VERSION:
             self.setWindowTitle(f"mapget {VERSION}")
@@ -86,6 +257,7 @@ class AppWindow(QMainWindow):
 
         self.build_toolbar()
         self.build_ui()
+        self.change_theme(self.current_theme)
         self.check_for_updates()
 
     def build_toolbar(self):
@@ -110,7 +282,19 @@ class AppWindow(QMainWindow):
             "enable debug output"
         )
 
-        self.auto_detect_checkbox.setChecked(True)
+        self.auto_detect_checkbox.setChecked(self.settings.get("auto_detect", True))
+        self.variant_buttons_checkbox.setChecked(self.settings.get("variant_buttons", False))
+        self.debug_checkbox.setChecked(self.settings.get("debug", False))
+
+        self.auto_detect_checkbox.clicked.connect(
+            lambda checked: save_setting("auto_detect", checked)
+        )
+        self.variant_buttons_checkbox.clicked.connect(
+            lambda checked: save_setting("variant_buttons", checked)
+        )
+        self.debug_checkbox.clicked.connect(
+            lambda checked: save_setting("debug", checked)
+        )
 
         for checkbox in [
             self.auto_detect_checkbox,
@@ -126,7 +310,10 @@ class AppWindow(QMainWindow):
         self.update_check_checkbox = QCheckBox(
             "check for updates on startup"
         )
-        self.update_check_checkbox.setChecked(True)
+        self.update_check_checkbox.setChecked(self.settings.get("update_check", True))
+        self.update_check_checkbox.clicked.connect(
+            lambda checked: save_setting("update_check", checked)
+        )
 
         action = QWidgetAction(self.settings_menu)
         action.setDefaultWidget(self.update_check_checkbox)
@@ -153,8 +340,6 @@ class AppWindow(QMainWindow):
             "dark",
             "win95"
         ]
-
-        self.current_theme = "void"
 
         for theme_name in theme_names:
             checkbox = QCheckBox(theme_name)
@@ -337,21 +522,63 @@ class AppWindow(QMainWindow):
 
     def search(self):
         query = self.input_box.text().strip()
-
         mapping = self.mapping_box.currentText()
-
         version = self.version_box.currentText()
 
-        result = self.manager.handle_query(
-            query,
-            mapping,
-            version
-        )
+        if not query:
+            self.output.setPlainText("Empty query")
+            return
 
-        self.output.setPlainText(result)
+        is_cached = False
+        github = self.manager.github
+        detected_mapping = mapping
+        if mapping == "auto":
+            detected_mapping = self.manager.detect_mapping_type(query)
+
+        if detected_mapping == "obfuscated":
+            is_cached = all(
+                (f"{m}_{version}" in github.cache or github.load_cache(m, version) is not None)
+                for m in ["yarn", "mojmap", "mcp"]
+            )
+        else:
+            is_cached = (f"{detected_mapping}_{version}" in github.cache or
+                         github.load_cache(detected_mapping, version) is not None)
+
+        if is_cached:
+            result = self.manager.handle_query(query, mapping, version)
+            self.output.setPlainText(result)
+            return
+
+        import threading
+
+        dialog = DownloadProgressDialog(self, self.current_theme)
+
+        def progress_callback(description, percent):
+            if dialog.cancelled:
+                return True
+            QTimer.singleShot(0, dialog, lambda: dialog.update_progress_safe(description, percent))
+            return False
+
+        def on_search_completed(result):
+            if dialog.cancelled:
+                self.output.setPlainText("Search cancelled")
+                return
+            dialog.accept()
+            self.output.setPlainText(result or "Error: failed to retrieve mapping data.")
+
+        def thread_target():
+            try:
+                res = self.manager.handle_query(query, mapping, version, progress_callback=progress_callback)
+            except Exception as e:
+                res = f"Error: {str(e)}"
+            QTimer.singleShot(0, self, lambda: on_search_completed(res))
+
+        threading.Thread(target=thread_target, daemon=True).start()
+        dialog.exec()
 
     def change_theme(self, theme_name):
         self.current_theme = theme_name
+        save_setting("theme", theme_name)
 
         for checkbox in self.theme_group:
             checkbox.blockSignals(True)
