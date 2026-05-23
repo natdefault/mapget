@@ -7,9 +7,6 @@ written by natdefault, 4xnico.
 <img width="720" height="558" alt="mapget_preview" src="https://github.com/user-attachments/assets/87a2e360-5437-4d53-87ed-dcb56cc6e1eb" />
 <br>
 
-<img width="720" height="558" alt="mapget_preview" src="https://github.com/user-attachments/assets/87a2e360-5437-4d53-87ed-dcb56cc6e1eb" />
-<br>
-
 ***
 
 this is a simple minecraft mapping lookup tool
