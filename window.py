@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
     QWidget,
@@ -20,14 +20,28 @@
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtCore import Qt
 
-from manager import MappingManager
-
+import os
 import sys
+from manager import MappingManager
 from themes.xp import THEME as XP_THEME
 from themes.vista import THEME as VISTA_THEME
 from themes.void import THEME as VOID_THEME
 from themes.dark import THEME as DARK_THEME
 from themes.win95 import THEME as WIN95_THEME
+
+
+# version only if compilesd
+try:
+    from version import VERSION, BUILD_DATE
+except ImportError:
+    VERSION = "" #  default if not compiled
+    BUILD_DATE = ""
+
+
+def get_asset_path(filename):
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, filename)
+    return filename
 
 
 THEME = VOID_THEME
@@ -38,10 +52,14 @@ class AppWindow(QMainWindow):
 
         self.manager = MappingManager()
 
-        self.setWindowTitle("mapget")
+        if VERSION:
+            self.setWindowTitle(f"mapget {VERSION}")
+        else:
+            self.setWindowTitle("mapget")
+
         self.resize(620, 430)
 
-        self.setWindowIcon(QIcon("helpsheet.png"))
+        self.setWindowIcon(QIcon(get_asset_path("assets/helpsheet.png")))
 
         self.setStyleSheet(THEME)
 
@@ -68,6 +86,7 @@ class AppWindow(QMainWindow):
 
         self.build_toolbar()
         self.build_ui()
+        self.check_for_updates()
 
     def build_toolbar(self):
         toolbar = QToolBar()
@@ -75,7 +94,9 @@ class AppWindow(QMainWindow):
 
         self.addToolBar(toolbar)
 
-        settings_menu = QMenu(self)
+        self.settings_menu = QMenu(self)
+
+        self.settings_menu.addSection("functionality")
 
         self.auto_detect_checkbox = QCheckBox(
             "enable auto detection"
@@ -96,13 +117,24 @@ class AppWindow(QMainWindow):
             self.variant_buttons_checkbox,
             self.debug_checkbox
         ]:
-            action = QWidgetAction(settings_menu)
+            action = QWidgetAction(self.settings_menu)
             action.setDefaultWidget(checkbox)
-            settings_menu.addAction(action)
+            self.settings_menu.addAction(action)
+
+        self.settings_menu.addSection("program")
+
+        self.update_check_checkbox = QCheckBox(
+            "check for updates on startup"
+        )
+        self.update_check_checkbox.setChecked(True)
+
+        action = QWidgetAction(self.settings_menu)
+        action.setDefaultWidget(self.update_check_checkbox)
+        self.settings_menu.addAction(action)
 
         settings_button = QToolButton()
         settings_button.setText("settings")
-        settings_button.setMenu(settings_menu)
+        settings_button.setMenu(self.settings_menu)
         settings_button.setPopupMode(
             QToolButton.InstantPopup
         )
@@ -110,7 +142,7 @@ class AppWindow(QMainWindow):
 
         toolbar.addWidget(settings_button)
 
-        themes_menu = QMenu(self)
+        self.themes_menu = QMenu(self)
 
         self.theme_group = []
 
@@ -134,10 +166,10 @@ class AppWindow(QMainWindow):
 
             self.theme_group.append(checkbox)
 
-            action = QWidgetAction(themes_menu)
+            action = QWidgetAction(self.themes_menu)
             action.setDefaultWidget(checkbox)
 
-            themes_menu.addAction(action)
+            self.themes_menu.addAction(action)
 
         for checkbox in self.theme_group:
             if checkbox.text() == self.current_theme:
@@ -145,7 +177,7 @@ class AppWindow(QMainWindow):
 
         themes_button = QToolButton()
         themes_button.setText("themes")
-        themes_button.setMenu(themes_menu)
+        themes_button.setMenu(self.themes_menu)
         themes_button.setPopupMode(
             QToolButton.InstantPopup
         )
@@ -153,10 +185,15 @@ class AppWindow(QMainWindow):
 
         toolbar.addWidget(themes_button)
 
+        self.update_menu_styles(self.current_theme)
+
         toolbar.addSeparator()
 
         about_button = QPushButton("about")
         about_button.setFixedHeight(24)
+
+        #new since old one didnt do anything
+        about_button.clicked.connect(self.show_about)
 
         toolbar.addWidget(about_button)
 
@@ -339,3 +376,198 @@ class AppWindow(QMainWindow):
 
         elif theme_name == "win95":
             self.setStyleSheet(WIN95_THEME)
+
+        self.update_menu_styles(theme_name)
+
+    def show_about(self):
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+        from PySide6.QtCore import QSize, Qt
+        import webbrowser
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("about")
+        dialog.setFixedSize(280, 185)
+        dialog.setStyleSheet(self.styleSheet())
+        dialog.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+
+        version_text = f"mapget {VERSION}" if VERSION else "mapget"
+        lbl_title = QLabel(version_text)
+        lbl_title.setAlignment(Qt.AlignCenter)
+        lbl_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        layout.addWidget(lbl_title)
+
+        date_str = BUILD_DATE if BUILD_DATE else "dev"
+        lbl_date = QLabel(f"build date: {date_str}")
+        lbl_date.setAlignment(Qt.AlignCenter)
+        layout.addWidget(lbl_date)
+
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(6)
+        # layouts
+        
+        git_icon = "git_invert.png" if self.current_theme in ["xp", "vista", "win95"] else "git.png"
+        btn_github = QPushButton("GitHub")
+        btn_github.setIcon(QIcon(get_asset_path(f"assets/{git_icon}")))
+        btn_github.setIconSize(QSize(16, 16))
+        btn_github.clicked.connect(lambda: webbrowser.open("https://github.com/natdefault/mapget"))
+        row_layout.addWidget(btn_github)
+
+        rel_icon = "release_invert.png" if self.current_theme in ["xp", "vista", "win95"] else "release.png"
+        btn_releases = QPushButton("Releases")
+        btn_releases.setIcon(QIcon(get_asset_path(f"assets/{rel_icon}")))
+        btn_releases.setIconSize(QSize(16, 16))
+        btn_releases.clicked.connect(lambda: webbrowser.open("https://github.com/natdefault/mapget/releases"))
+        row_layout.addWidget(btn_releases)
+
+        layout.addLayout(row_layout)
+
+        ota_icon = "ota_invert.png" if self.current_theme in ["xp", "vista", "win95"] else "ota.png"
+        btn_ota = QPushButton("Check for updates")
+        btn_ota.setIcon(QIcon(get_asset_path(f"assets/{ota_icon}")))
+        btn_ota.setIconSize(QSize(16, 16))
+        btn_ota.clicked.connect(lambda: [dialog.accept(), self.check_updates_clicked()])
+        layout.addWidget(btn_ota)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def check_for_updates(self):
+        if not self.update_check_checkbox.isChecked():
+            return
+
+        import threading
+        threading.Thread(target=self._run_update_check, daemon=True).start() # query github
+
+    def _run_update_check(self):
+        import requests
+        try:
+            headers = {"User-Agent": "mapget-update-checker"}
+            r = requests.get("https://api.github.com/repos/natdefault/mapget/releases/latest", headers=headers, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                tag_name = data.get("tag_name", "").strip()
+                latest_version = tag_name.lstrip("v")
+                current_version = VERSION.strip().lstrip("v")
+
+                if current_version and latest_version:
+                    curr_parts = [int(x) for x in current_version.split(".") if x.isdigit()]
+                    late_parts = [int(x) for x in latest_version.split(".") if x.isdigit()]
+
+                    is_newer = False
+                    for i in range(max(len(curr_parts), len(late_parts))):
+                        c = curr_parts[i] if i < len(curr_parts) else 0
+                        l = late_parts[i] if i < len(late_parts) else 0
+                        if l > c:
+                            is_newer = True
+                            break
+                        elif c > l:
+                            break
+
+                    if is_newer:
+                        from PySide6.QtCore import QTimer
+                        QTimer.singleShot(0, self, lambda: self.prompt_update(latest_version, data.get("html_url"))) # ask
+        except Exception:
+            pass
+
+    def prompt_update(self, latest_version, url):
+        from PySide6.QtWidgets import QMessageBox
+        import webbrowser
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("update available")
+        msg.setText(f"a new version is available : {latest_version}")
+        msg.setInformativeText("would you like to open the releases page to download it?")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setDefaultButton(QMessageBox.Yes)
+        msg.setStyleSheet(self.styleSheet())
+
+        if msg.exec() == QMessageBox.Yes:
+            webbrowser.open(url)
+
+    def update_menu_styles(self, theme_name):
+        if theme_name == "xp":
+            sep_color = "#adc0d5"
+        elif theme_name == "vista":
+            sep_color = "#8da4bf"
+        elif theme_name == "void":
+            sep_color = "#272727"
+        elif theme_name == "dark":
+            sep_color = "#2c2f33"
+        elif theme_name == "win95":
+            sep_color = "#808080"
+        else:
+            sep_color = "#2e2e2e"
+
+        style = f"""
+            QMenu {{
+                border-radius: 0px;
+                padding: 4px;
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {sep_color};
+                margin-top: 8px;
+                margin-bottom: 8px;
+            }}
+            QCheckBox {{
+                padding: 6px 16px;
+                min-width: 150px;
+            }}
+        """
+        self.settings_menu.setStyleSheet(style)
+        self.themes_menu.setStyleSheet(style)
+
+    def check_updates_clicked(self):
+        self.output.setPlainText("Checking for updates...")
+        import threading
+        threading.Thread(target=self._run_manual_update_check, daemon=True).start()
+
+    def _run_manual_update_check(self):
+        import requests
+        from PySide6.QtCore import QTimer
+        try:
+            headers = {"User-Agent": "mapget-update-checker"}
+            r = requests.get("https://api.github.com/repos/natdefault/mapget/releases/latest", headers=headers, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                tag_name = data.get("tag_name", "").strip()
+                latest_version = tag_name.lstrip("v")
+                current_version = VERSION.strip().lstrip("v")
+
+                if current_version:
+                    curr_parts = [int(x) for x in current_version.split(".") if x.isdigit()]
+                    late_parts = [int(x) for x in latest_version.split(".") if x.isdigit()]
+
+                    is_newer = False
+                    for i in range(max(len(curr_parts), len(late_parts))):
+                        c = curr_parts[i] if i < len(curr_parts) else 0
+                        l = late_parts[i] if i < len(late_parts) else 0
+                        if l > c:
+                            is_newer = True
+                            break
+                        elif c > l:
+                            break
+
+                    if is_newer:
+                        msg = f"Update available: {latest_version}\nReleases URL: {data.get('html_url')}"
+                        QTimer.singleShot(0, self, lambda: self.output.setPlainText(msg))
+                        QTimer.singleShot(0, self, lambda: self.prompt_update(latest_version, data.get("html_url")))
+                    else:
+                        msg = f"up to date (version {VERSION})"
+                        QTimer.singleShot(0, self, lambda: self.output.setPlainText(msg))
+                else:
+                    msg = f"Running development version.\nLatest release: {latest_version}\nReleases URL: {data.get('html_url')}"
+                    QTimer.singleShot(0, self, lambda: self.output.setPlainText(msg))
+            elif r.status_code == 404:
+                msg = "No data."
+                QTimer.singleShot(0, self, lambda: self.output.setPlainText(msg))
+            else:
+                msg = f"Failed to check for updates. Status code: {r.status_code}"
+                QTimer.singleShot(0, self, lambda: self.output.setPlainText(msg))
+        except Exception as e:
+            msg = f"Error checking for updates: {str(e)}"
+            QTimer.singleShot(0, self, lambda: self.output.setPlainText(msg))

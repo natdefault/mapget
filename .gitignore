@@ -1,1 +1,7 @@
 __pycache__/
+cache/
+build/
+dist/
+*.spec
+version.py
+.cache
