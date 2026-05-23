@@ -1,5 +1,7 @@
 # mapget
 **download from releases:** https://github.com/natdefault/mapget/releases
+<br>
+written by natdefault, 4xnico.
 
 this is a simple minecraft mapping lookup tool
 
