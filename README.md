@@ -1,3 +1,6 @@
+# mapget
+**download from releases:** https://github.com/natdefault/mapget/releases
+
 this is a simple minecraft mapping lookup tool
 
 you can input things like field_9989, func_1234, or other mapped/obfuscated names and it will try to return a readable name, class path, type, and some extra info depending on the mapping data.
@@ -9,9 +12,9 @@ it supports:
 - auto mapping detection
 - obfuscated mode (for yarn-style inputs)
 
-## what it does
+## main functions
 
-basically it takes minecraft internal names and tries to turn them into something readable so you can understand what they actually are.
+it takes minecraft internal names and tries to turn them into something readable so you can understand what they actually are.
 
 example:
 
@@ -25,24 +28,33 @@ type (field/method/class)
 version info
 extra debug info if available
 
-## how to run
+## other features
+- choose from 5 distinct themes.
+- fast cache
+- automatic updating to latest version
+- pyinstaller support
 
+## how to use
+there are two ways of using this program.
+#### build with pyinstaller (to .exe)
+to build with pyinstaller, you need to use the included build tool.
+```
+py build.py
+```
+the .exe file will be ready in the 'dist' directory.
+### run with python
 install dependencies:
+```
 pip install -r requirements.txt
-
+```
 run the app:
+```
 python main.py
+```
 
 ## notes
-
 mcp only works for versions it supports (1.12 and below)
-
 first run might take longer because it downloads mapping data and caches it locally
 
-## purpose
-
-this is just a small tool for looking up minecraft mappings. feel free to use it or modify it however you want
-
 ## license
-
 licensed under the gnu agpl-3.0 license.
