@@ -435,6 +435,10 @@ class AppWindow(QMainWindow):
             "yarn",
             "mojmap",
             "mcp",
+            "intermediary",
+            "srg",
+            "tsrg",
+            "retromcp",
             "obfuscated"
         ])
 
