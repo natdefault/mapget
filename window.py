@@ -26,6 +26,7 @@ import os
 import sys
 import sqlite3
 from manager import MappingManager
+from utils.paths import cfg_db, plat_tag
 from themes.xp import THEME as XP_THEME
 from themes.vista import THEME as VISTA_THEME
 from themes.void import THEME as VOID_THEME
@@ -37,8 +38,13 @@ from themes.win95 import THEME as WIN95_THEME
 try:
     from version import VERSION, BUILD_DATE
 except ImportError:
-    VERSION = "" #  default if not compiled
+    VERSION = ""
     BUILD_DATE = ""
+
+try:
+    from version import TARGET
+except ImportError:
+    TARGET = ""
 
 
 def get_asset_path(filename):
@@ -56,7 +62,7 @@ def load_settings():
         "update_check": True
     }
     try:
-        conn = sqlite3.connect(".mgcfg")
+        conn = sqlite3.connect(cfg_db())
         cursor = conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         cursor.execute("SELECT key, value FROM settings")
@@ -74,7 +80,7 @@ def load_settings():
 
 def save_setting(key, value):
     try:
-        conn = sqlite3.connect(".mgcfg")
+        conn = sqlite3.connect(cfg_db())
         cursor = conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
@@ -258,6 +264,7 @@ class AppWindow(QMainWindow):
         self.build_toolbar()
         self.build_ui()
         self.change_theme(self.current_theme)
+        self.output.setPlainText(f"Fetched config from {cfg_db()}")
         self.check_for_updates()
 
     def build_toolbar(self):
@@ -267,8 +274,6 @@ class AppWindow(QMainWindow):
         self.addToolBar(toolbar)
 
         self.settings_menu = QMenu(self)
-
-        self.settings_menu.addSection("functionality")
 
         self.auto_detect_checkbox = QCheckBox(
             "enable auto detection"
@@ -617,7 +622,7 @@ class AppWindow(QMainWindow):
 
         dialog = QDialog(self)
         dialog.setWindowTitle("about")
-        dialog.setFixedSize(280, 185)
+        dialog.setFixedSize(280, 205)
         dialog.setStyleSheet(self.styleSheet())
         dialog.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint)
 
@@ -635,6 +640,10 @@ class AppWindow(QMainWindow):
         lbl_date = QLabel(f"build date: {date_str}")
         lbl_date.setAlignment(Qt.AlignCenter)
         layout.addWidget(lbl_date)
+
+        lbl_tgt = QLabel(f"target: {TARGET or plat_tag()}")
+        lbl_tgt.setAlignment(Qt.AlignCenter)
+        layout.addWidget(lbl_tgt)
 
         row_layout = QHBoxLayout()
         row_layout.setSpacing(6)

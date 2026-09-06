@@ -15,20 +15,24 @@ from parsers.srg import SRGParser
 from parsers.tsrg import TSRGParser
 from parsers.retromcp import RetroMCPParser
 from utils.mapping_utils import is_placeholder, readable_name, hint_for_entry
+from utils.paths import cache_db
 
 
 class MappingGitHub:
     def __init__(self):
         self.cache = {}
-        self.cache_file = ".cache"
-        self._init_db() # init sqlite cache
+        self.cache_file = cache_db()
+        self._init_db()
 
     def _init_db(self):
-        conn = sqlite3.connect(self.cache_file)
-        cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, data BLOB)")
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect(self.cache_file)
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, data BLOB)")
+            conn.commit()
+            conn.close()
+        except sqlite3.Error:
+            pass
 
     def load_cache(self, mapping_type, version): # fetch cached mappings
         key = f"{mapping_type}_{version}"
