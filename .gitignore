@@ -6,3 +6,5 @@ dist/
 version.py
 .cache
 .mgcfg
+venv/
+.venv/
